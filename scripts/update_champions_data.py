@@ -19,6 +19,7 @@ OUTPUT = ROOT / "data" / "champions-db.js"
 CACHE = ROOT / "data" / ".cache" / "learnsets-v3"
 PIKALYTICS_FORMAT = "battledataregmbs3"
 META_CACHE = ROOT / "data" / ".cache" / PIKALYTICS_FORMAT
+ABILITY_CACHE = ROOT / "data" / ".cache" / "ability-descriptions"
 SMOGON = "https://www.smogon.com/dex/champions/pokemon/"
 SMOGON_RPC = "https://www.smogon.com/dex/_rpc/dump-pokemon"
 WIKI = "https://wiki.52poke.com/zh-hans/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E5%88%97%E8%A1%A8%EF%BC%88Champions%EF%BC%89"
@@ -171,6 +172,32 @@ def fetch_pikalytics(name: str) -> tuple[str, dict]:
         return name, {}
 
 
+def fetch_ability_description(name: str, fallback: str) -> tuple[str, str]:
+    cache_file = ABILITY_CACHE / f"{to_id(name)}.json"
+    try:
+        if cache_file.exists():
+            payload = json.loads(cache_file.read_text(encoding="utf-8"))
+        else:
+            response = requests.get(
+                f"https://pokeapi.co/api/v2/ability/{to_slug(name)}",
+                headers=session.headers,
+                timeout=45,
+            )
+            response.raise_for_status()
+            response.encoding = "utf-8"
+            payload = response.json()
+            ABILITY_CACHE.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        entries = [
+            value["flavor_text"] for value in payload.get("flavor_text_entries", [])
+            if value.get("language", {}).get("name") == "zh-hans"
+        ]
+        description = re.sub(r"\s+", "", entries[-1]) if entries else fallback
+        return name, description
+    except (requests.RequestException, OSError, ValueError, KeyError):
+        return name, fallback
+
+
 def translated(mapping: dict, english: str) -> str:
     return mapping.get(english.lower()) or mapping.get(to_id(english)) or english
 
@@ -184,6 +211,16 @@ def main() -> None:
     zh_type = locale("type")
     ranks = pikalytics_ranks()
     versions, wiki_rows = wiki_versions()
+
+    ability_descriptions: dict[str, str] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(fetch_ability_description, ability["name"], ability.get("description", ""))
+            for ability in basics["abilities"]
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            name, description = future.result()
+            ability_descriptions[name] = description
 
     pokemon_source = basics["pokemon"]
     dex_by_name = {
@@ -253,10 +290,16 @@ def main() -> None:
         for item in basics["items"]
     ]
     items_by_name = {item["en"]: item for item in items}
-    ability_by_name = {
-        ability["name"]: translated(zh_ability, ability["name"])
+    abilities = [
+        {
+            "id": to_id(ability["name"]),
+            "name": translated(zh_ability, ability["name"]),
+            "en": ability["name"],
+            "description": ability_descriptions.get(ability["name"], ability.get("description", "")),
+        }
         for ability in basics["abilities"]
-    }
+    ]
+    ability_by_name = {ability["en"]: ability["name"] for ability in abilities}
     nature_zh = {
         "Hardy": "勤奋", "Lonely": "怕寂寞", "Brave": "勇敢", "Adamant": "固执", "Naughty": "顽皮",
         "Bold": "大胆", "Docile": "坦率", "Relaxed": "悠闲", "Impish": "淘气", "Lax": "乐天",
@@ -385,6 +428,7 @@ def main() -> None:
         "pokemon": pokemon,
         "moves": moves,
         "items": items,
+        "abilities": abilities,
     }
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(database, ensure_ascii=False, separators=(",", ":"))
