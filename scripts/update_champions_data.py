@@ -8,6 +8,7 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -16,6 +17,8 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "data" / "champions-db.js"
 CACHE = ROOT / "data" / ".cache" / "learnsets-v3"
+PIKALYTICS_FORMAT = "battledataregmbs3"
+META_CACHE = ROOT / "data" / ".cache" / PIKALYTICS_FORMAT
 SMOGON = "https://www.smogon.com/dex/champions/pokemon/"
 SMOGON_RPC = "https://www.smogon.com/dex/_rpc/dump-pokemon"
 WIKI = "https://wiki.52poke.com/zh-hans/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E5%88%97%E8%A1%A8%EF%BC%88Champions%EF%BC%89"
@@ -116,6 +119,58 @@ def fetch_learnset(name: str) -> tuple[str, dict]:
     return name, {"learnset": []}
 
 
+def first_entry(soup: BeautifulSoup, wrapper: str) -> str:
+    entry = soup.select_one(f"#{wrapper} .pokedex-move-entry-new")
+    if not entry:
+        return ""
+    value = entry.select_one(".pokedex-inline-text-offset, .pokedex-inline-text")
+    return value.get_text(" ", strip=True) if value else ""
+
+
+def fetch_pikalytics(name: str) -> tuple[str, dict]:
+    cache_file = META_CACHE / f"{to_id(name)}.html"
+    try:
+        if cache_file.exists():
+            html = cache_file.read_text(encoding="utf-8")
+        else:
+            url = f"https://www.pikalytics.com/pokedex/{PIKALYTICS_FORMAT}/{quote(name)}?l=en"
+            html = ""
+            for attempt in range(3):
+                try:
+                    response = requests.get(url, headers=session.headers, timeout=60)
+                    response.raise_for_status()
+                    html = response.text
+                    break
+                except requests.RequestException:
+                    if attempt == 2:
+                        raise
+                    time.sleep(2 + attempt * 2)
+            META_CACHE.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(html, encoding="utf-8")
+        soup = BeautifulSoup(html, "html.parser")
+        moves = []
+        for entry in soup.select("#moves_wrapper .pokedex-move-entry-new")[:4]:
+            value = entry.select_one(".pokedex-inline-text-offset")
+            if value:
+                moves.append(value.get_text(" ", strip=True))
+        spread_entry = soup.select_one("#dex_spreads_wrapper .pokedex-move-entry-new")
+        spread = []
+        if spread_entry:
+            spread = [
+                int(re.sub(r"\D", "", value.get_text()) or 0)
+                for value in spread_entry.select(".pokedex-inline-text")[:6]
+            ]
+        return name, {
+            "moves": moves,
+            "item": first_entry(soup, "items_wrapper"),
+            "ability": first_entry(soup, "abilities_wrapper"),
+            "nature": first_entry(soup, "dex_natures_wrapper"),
+            "points": spread if len(spread) == 6 else [],
+        }
+    except (requests.RequestException, OSError, ValueError):
+        return name, {}
+
+
 def translated(mapping: dict, english: str) -> str:
     return mapping.get(english.lower()) or mapping.get(to_id(english)) or english
 
@@ -167,6 +222,15 @@ def main() -> None:
             if index % 40 == 0:
                 print(f"learnsets {index}/{len(futures)}")
 
+    popular: dict[str, dict] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(fetch_pikalytics, p["name"]) for p in pokemon_source]
+        for index, future in enumerate(concurrent.futures.as_completed(futures), 1):
+            name, result = future.result()
+            popular[name] = result
+            if index % 40 == 0:
+                print(f"popular sets {index}/{len(futures)}")
+
     moves = []
     moves_by_name = {}
     for move in basics["moves"]:
@@ -188,6 +252,18 @@ def main() -> None:
         {"id": to_id(item["name"]), "name": translated(zh_item, item["name"]), "en": item["name"]}
         for item in basics["items"]
     ]
+    items_by_name = {item["en"]: item for item in items}
+    ability_by_name = {
+        ability["name"]: translated(zh_ability, ability["name"])
+        for ability in basics["abilities"]
+    }
+    nature_zh = {
+        "Hardy": "勤奋", "Lonely": "怕寂寞", "Brave": "勇敢", "Adamant": "固执", "Naughty": "顽皮",
+        "Bold": "大胆", "Docile": "坦率", "Relaxed": "悠闲", "Impish": "淘气", "Lax": "乐天",
+        "Timid": "胆小", "Hasty": "急躁", "Serious": "认真", "Jolly": "爽朗", "Naive": "天真",
+        "Modest": "内敛", "Mild": "慢吞吞", "Quiet": "冷静", "Bashful": "害羞", "Rash": "马虎",
+        "Calm": "温和", "Gentle": "温顺", "Sassy": "自大", "Careful": "慎重", "Quirky": "浮躁",
+    }
 
     missing_names = {
         "Vivillon-Fancy": "彩粉蝶·幻彩花纹",
@@ -234,6 +310,35 @@ def main() -> None:
             if move_id not in defaults:
                 defaults.append(move_id)
 
+        usage = popular.get(english, {})
+        usage_base_name = {
+            **form_bases,
+            "Floette-Mega": "Floette-Eternal",
+            "Sinistcha-Masterpiece": "Sinistcha",
+            "Vivillon-Fancy": "Vivillon",
+            "Vivillon-Pokeball": "Vivillon",
+            "Gourgeist-Large": "Gourgeist",
+            "Gourgeist-Small": "Gourgeist",
+            "Gourgeist-Super": "Gourgeist",
+            "Polteageist-Antique": "Polteageist",
+            "Maushold-Four": "Maushold",
+        }.get(english, re.sub(r"-Mega(?:-[XY])?$", "", english))
+        base_usage = popular.get(usage_base_name, {}) if usage_base_name != english else {}
+        usage = {
+            key: usage.get(key) or base_usage.get(key) or ([] if key in ("moves", "points") else "")
+            for key in ("moves", "item", "ability", "nature", "points")
+        }
+        popular_moves = [
+            to_id(name) for name in usage.get("moves", [])
+            if name in moves_by_name and to_id(name) in legal_moves
+        ][:4]
+        popular_item = items_by_name.get(usage.get("item", ""), {}).get("name", "")
+        popular_ability = ability_by_name.get(usage.get("ability", ""), "")
+        popular_nature = nature_zh.get(usage.get("nature", ""), "")
+        popular_points = usage.get("points", [])
+        if len(popular_points) != 6 or max(popular_points, default=0) > 32 or sum(popular_points) > 66:
+            popular_points = []
+
         is_mega = "-Mega" in english
         dex = inherited_dex(english)
         pokemon.append(
@@ -250,6 +355,11 @@ def main() -> None:
                 "metaRank": ranks.get(to_id(english)),
                 "learnset": legal_moves,
                 "defaultMoves": defaults,
+                "popularMoves": popular_moves,
+                "popularItem": popular_item,
+                "popularAbility": popular_ability,
+                "popularNature": popular_nature,
+                "popularPoints": popular_points,
                 "sprite": f"https://play.pokemonshowdown.com/sprites/gen5/{pokemon_id}.png",
             }
         )
@@ -270,6 +380,7 @@ def main() -> None:
             "items": len(items),
             "abilities": len(basics["abilities"]),
             "wikiRows": wiki_rows,
+            "popularSets": sum(bool(value.get("moves")) for value in popular.values()),
         },
         "pokemon": pokemon,
         "moves": moves,

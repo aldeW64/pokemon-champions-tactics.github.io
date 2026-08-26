@@ -23,6 +23,8 @@ python scripts/update_champions_data.py
 - PokéStats 开源项目：中文名称翻译
 - Pikalytics Champions：当前使用率排序
 
+选择宝可梦时会优先采用 Pikalytics Regulation M-B S3 当前最高使用率的四个招式、道具、特性、性格和能力点分配。没有独立统计的战斗/超级形态会继承基础形态统计；仍无足够样本时才回退到合法招式默认配置。
+
 `pokechampdb.com` 当前证书无效，脚本不会绕过 TLS 安全校验。Bulbapedia/口袋图鉴可用于人工复核，但不是自动生成所必需的数据源。
 
 Champions 使用“能力点数”：单项最多 32 点，总计最多 66 点；不是系列正作的 252/510 努力值制。
