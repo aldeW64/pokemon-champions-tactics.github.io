@@ -281,6 +281,7 @@ def main() -> None:
             "power": move.get("power") or 0,
             "accuracy": move.get("accuracy") or 0,
             "priority": move.get("priority") or 0,
+            "flags": move.get("flags") or [],
         }
         moves.append(item)
         moves_by_name[move["name"]] = item
