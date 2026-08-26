@@ -15,6 +15,10 @@
     /* Keep move labels and selectors visually consistent with the battle side rows. */
     .moves label,
     .moves .move-select{font-size:14px}
+    .quick-stages{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;margin-top:6px;align-items:center}
+    .quick-stages>span{grid-column:1/-1;color:#8c99b9;font-size:10px;font-weight:800}
+    .quick-stages label{display:grid;gap:2px;text-align:center;color:#8c99b9;font-size:9px}
+    .quick-stages select{width:100%;min-width:0;padding:3px 1px;border:1px solid var(--line);border-radius:5px;background:#0d1228;color:#edf2ff;font-size:11px;text-align:center}
   </style>
 </head>
 <body>
@@ -76,7 +80,7 @@
   function renderTeam(side){
     let arr=side==='my'?my:opp,active=side==='my'?activeMy:activeOpp;
     $('#'+side+'Team').innerHTML=arr.map((p,i)=>'<article draggable="true" class="slot '+(active.includes(i)?'active':'')+'" data-slot="'+side+':'+i+'">'
-      +'<img class="sprite" src="'+sprite(p)+'" onerror="this.onerror=null;this.src=\'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/'+p.dex+'.png\'" alt="'+p.name+'"><div><div class="mon-name"><strong>'+p.name+(p.mega?'<span class="mega-tag">MEGA</span>':'')+'</strong><button type="button" class="edit" data-pick="'+side+':'+i+'">更换</button><button type="button" class="remove" data-remove="'+side+':'+i+'">移除</button></div><div class="types">'+p.types.map(type).join('')+'</div><div class="meta">'+p.nature+'性格 · '+p.item+' · '+p.status+'</div></div>'
+      +'<img class="sprite" src="'+sprite(p)+'" onerror="this.onerror=null;this.src=\'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/'+p.dex+'.png\'" alt="'+p.name+'"><div><div class="mon-name"><strong>'+p.name+(p.mega?'<span class="mega-tag">MEGA</span>':'')+'</strong><button type="button" class="edit" data-pick="'+side+':'+i+'">更换</button><button type="button" class="remove" data-remove="'+side+':'+i+'">移除</button></div><div class="types">'+p.types.map(type).join('')+'</div><div class="meta">'+p.nature+'性格 · '+p.item+' · '+p.status+'</div><div class="quick-stages" title="战斗中的能力等级"><span>能力</span>'+Object.keys(stageName).map(k=>'<label>'+stageName[k]+'<select class="'+(p.stages[k]>0?'up':p.stages[k]<0?'down':'')+'" data-edit="'+side+':'+i+':stage:'+k+'">'+stageOptions(p.stages[k])+'</select></label>').join('')+'</div></div>'
       +'<details class="stats-detail"><summary>配置、招式与属性关系 <span>能力点 '+p.evs.reduce((a,b)=>a+b,0)+'/66</span></summary>'
       +relations(p)+'<div class="stat-table"><div class="stat-label">能力</div>'+statNames.map((n,j)=>'<label class="stat-cell">'+n+'<b>'+actualStat(p,j)+'</b><input type="number" min="0" max="32" step="1" value="'+p.evs[j]+'" aria-label="'+p.name+n+'能力点" data-edit="'+side+':'+i+':ev:'+j+'"></label>').join('')+'</div>'
       +'<div class="editor-grid"><img src="'+sprite(p)+'" alt=""><div><label>性格<select data-edit="'+side+':'+i+':nature">'+natureOptions(p,p.nature)+'</select></label><label>特性<select data-edit="'+side+':'+i+':ability">'+p.abilities.map(x=>'<option value="'+x+'" '+(p.ability===x?'selected':'')+'>'+abilityLabel(x)+'</option>').join('')+'</select></label><label>道具<select data-edit="'+side+':'+i+':item">'+itemOptions(p,p.item)+'</select></label>'+p.moves.map((m,j)=>'<label>招式'+(j+1)+'<select class="move-select" data-edit="'+side+':'+i+':move:'+j+'">'+moveOptions(p,m)+'</select></label>').join('')+'</div>'
