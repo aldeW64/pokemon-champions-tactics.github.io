@@ -8,6 +8,23 @@
 
 ## 数据范围
 
-`index.html` 内的 `C` 是依据官方 Regulation M-B 资料整理的**已确认示例池**，不是完整可用名单；搜索只使用该表。赛季可用宝可梦、推荐配装或机制变化时，应根据官方资料更新这份数据。
+`data/champions-db.js` 当前包含 Regulation M-B 的 323 个可用形态（其中 76 个超级进化）、500 个招式、151 件道具和 201 个特性。页面将普通形态与超级进化分组，并按照每只宝可梦的合法招式表生成下拉列表。
+
+数据生成脚本为 `scripts/update_champions_data.py`。安装 `requests` 与 `beautifulsoup4` 后运行：
+
+```powershell
+python scripts/update_champions_data.py
+```
+
+脚本使用以下公开资料交叉整理：
+
+- Smogon Champions：可用形态、种族值、属性、特性、招式表、道具与招式参数
+- 52Poké Champions 列表：版本/可用名单核对
+- PokéStats 开源项目：中文名称翻译
+- Pikalytics Champions：当前使用率排序
+
+`pokechampdb.com` 当前证书无效，脚本不会绕过 TLS 安全校验。Bulbapedia/口袋图鉴可用于人工复核，但不是自动生成所必需的数据源。
+
+Champions 使用“能力点数”：单项最多 32 点，总计最多 66 点；不是系列正作的 252/510 努力值制。
 
 队伍预设保存在访问者自己的浏览器 Local Storage 中。
