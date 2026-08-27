@@ -388,9 +388,9 @@ def main() -> None:
         }.get(english, re.sub(r"-Mega(?:-[XY])?$", "", english))
         base_usage = popular.get(usage_base_name, {}) if usage_base_name != english else {}
         usage = {
-            key: usage.get(key) or base_usage.get(key) or ([] if key in ("moves", "points") else "")
-            for key in ("moves", "moveUsage", "items", "itemUsage", "ability", "nature", "natures", "natureUsage", "points")
-            }
+            key: usage.get(key) or base_usage.get(key) or ({ } if key.endswith("Usage") else ([] if key in ("moves", "items", "natures", "points") else ""))
+            for key in ("moves", "items", "natures", "points", "moveUsage", "itemUsage", "natureUsage", "item", "ability", "nature")
+        }
         popular_moves = [
             to_id(name) for name in usage.get("moves", [])
             if name in moves_by_name and to_id(name) in legal_moves
