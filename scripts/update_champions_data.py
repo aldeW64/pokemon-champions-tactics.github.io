@@ -128,6 +128,23 @@ def first_entry(soup: BeautifulSoup, wrapper: str) -> str:
     return value.get_text(" ", strip=True) if value else ""
 
 
+def ranked_entries(soup: BeautifulSoup, wrapper: str, limit: int = 10) -> tuple[list[str], dict[str, float]]:
+    names: list[str] = []
+    usage: dict[str, float] = {}
+    for entry in soup.select(f"#{wrapper} .pokedex-move-entry-new")[:limit]:
+        value = entry.select_one(".pokedex-inline-text-offset, .pokedex-inline-text")
+        if not value:
+            continue
+        name = value.get_text(" ", strip=True)
+        names.append(name)
+        rate = entry.select_one(".pokedex-inline-right")
+        if rate:
+            match = re.search(r"[0-9]+(?:\.[0-9]+)?", rate.get_text(" ", strip=True))
+            if match:
+                usage[name] = float(match.group(0))
+    return names, usage
+
+
 def fetch_pikalytics(name: str) -> tuple[str, dict]:
     cache_file = META_CACHE / f"{to_id(name)}.html"
     try:
@@ -149,11 +166,9 @@ def fetch_pikalytics(name: str) -> tuple[str, dict]:
             META_CACHE.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(html, encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
-        moves = []
-        for entry in soup.select("#moves_wrapper .pokedex-move-entry-new")[:4]:
-            value = entry.select_one(".pokedex-inline-text-offset")
-            if value:
-                moves.append(value.get_text(" ", strip=True))
+        moves, move_usage = ranked_entries(soup, "moves_wrapper")
+        items, item_usage = ranked_entries(soup, "items_wrapper")
+        natures, nature_usage = ranked_entries(soup, "dex_natures_wrapper")
         spread_entry = soup.select_one("#dex_spreads_wrapper .pokedex-move-entry-new")
         spread = []
         if spread_entry:
@@ -163,9 +178,13 @@ def fetch_pikalytics(name: str) -> tuple[str, dict]:
             ]
         return name, {
             "moves": moves,
-            "item": first_entry(soup, "items_wrapper"),
+            "moveUsage": move_usage,
+            "items": items,
+            "itemUsage": item_usage,
             "ability": first_entry(soup, "abilities_wrapper"),
             "nature": first_entry(soup, "dex_natures_wrapper"),
+            "natures": natures,
+            "natureUsage": nature_usage,
             "points": spread if len(spread) == 6 else [],
         }
     except (requests.RequestException, OSError, ValueError):
@@ -370,13 +389,14 @@ def main() -> None:
         base_usage = popular.get(usage_base_name, {}) if usage_base_name != english else {}
         usage = {
             key: usage.get(key) or base_usage.get(key) or ([] if key in ("moves", "points") else "")
-            for key in ("moves", "item", "ability", "nature", "points")
-        }
+            for key in ("moves", "moveUsage", "items", "itemUsage", "ability", "nature", "natures", "natureUsage", "points")
+            }
         popular_moves = [
             to_id(name) for name in usage.get("moves", [])
             if name in moves_by_name and to_id(name) in legal_moves
-        ][:4]
-        popular_item = items_by_name.get(usage.get("item", ""), {}).get("name", "")
+        ][:10]
+        popular_items = [items_by_name[name]["name"] for name in usage.get("items", []) if name in items_by_name][:10]
+        popular_item = popular_items[0] if popular_items else items_by_name.get(usage.get("item", ""), {}).get("name", "")
         popular_ability = ability_by_name.get(usage.get("ability", ""), "")
         popular_nature = nature_zh.get(usage.get("nature", ""), "")
         popular_points = usage.get("points", [])
@@ -400,9 +420,14 @@ def main() -> None:
                 "learnset": legal_moves,
                 "defaultMoves": defaults,
                 "popularMoves": popular_moves,
+                "moveUsage": {to_id(name): rate for name, rate in usage.get("moveUsage", {}).items() if name in moves_by_name},
+                "popularItems": popular_items,
+                "itemUsage": {items_by_name[name]["name"]: rate for name, rate in usage.get("itemUsage", {}).items() if name in items_by_name},
                 "popularItem": popular_item,
                 "popularAbility": popular_ability,
                 "popularNature": popular_nature,
+                "popularNatures": [nature_zh.get(name, name) for name in usage.get("natures", [])][:10],
+                "natureUsage": {nature_zh.get(name, name): rate for name, rate in usage.get("natureUsage", {}).items()},
                 "popularPoints": popular_points,
                 "sprite": f"https://play.pokemonshowdown.com/sprites/gen5/{pokemon_id}.png",
             }
