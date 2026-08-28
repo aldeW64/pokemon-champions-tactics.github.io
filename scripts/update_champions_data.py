@@ -57,9 +57,17 @@ def locale(name: str) -> dict:
 
 
 def pikalytics_ranks() -> dict[str, int]:
+    api_url = "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmb?limit=2000&offset=0&elo_cutoff=1760"
+    try:
+        payload = get(api_url).json()
+        rows = payload.get("pokemon", []) if isinstance(payload, dict) else []
+        ranks = {to_id(row.get("showdown_id") or row.get("pokemon_name") or row.get("name", "")): row.get("rank") for row in rows}
+        ranks = {name: int(rank) for name, rank in ranks.items() if name and rank is not None}
+        if ranks:
+            return ranks
+    except (requests.RequestException, ValueError, TypeError):
+        pass
     soup = BeautifulSoup(get(PIKALYTICS).text, "html.parser")
-    # The page contains the complete visible usage table; restricting this to
-    # the "Top Pokemon usage" section only returned the first 20 entries.
     cards = soup.select("[data-name]")
     ranks: dict[str, int] = {}
     for card in cards:
