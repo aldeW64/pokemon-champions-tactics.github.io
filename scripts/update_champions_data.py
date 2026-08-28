@@ -56,15 +56,16 @@ def locale(name: str) -> dict:
     return get(f"{LOCALES}/{name}.zh.json").json()
 
 
-def pikalytics_ranks() -> dict[str, int]:
+def pikalytics_ranks() -> tuple[dict[str, int], dict[str, float]]:
     api_url = "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmb?limit=2000&offset=0&elo_cutoff=1760"
     try:
         payload = get(api_url).json()
         rows = payload.get("pokemon", []) if isinstance(payload, dict) else []
         ranks = {to_id(row.get("showdown_id") or row.get("pokemon_name") or row.get("name", "")): row.get("rank") for row in rows}
         ranks = {name: int(rank) for name, rank in ranks.items() if name and rank is not None}
+        usage = {to_id(row.get("showdown_id") or row.get("pokemon_name") or row.get("name", "")): float(row.get("usage_rate", 0)) * 100 for row in rows if row.get("pokemon_name")}
         if ranks:
-            return ranks
+            return ranks, usage
     except (requests.RequestException, ValueError, TypeError):
         pass
     soup = BeautifulSoup(get(PIKALYTICS).text, "html.parser")
@@ -74,7 +75,7 @@ def pikalytics_ranks() -> dict[str, int]:
         name = to_id(card.get("data-name", ""))
         if name and name not in ranks:
             ranks[name] = len(ranks) + 1
-    return ranks
+    return ranks, {}
 
 
 def wiki_versions() -> tuple[dict[tuple[int, bool], str], int]:
@@ -243,7 +244,7 @@ def main() -> None:
     zh_ability = locale("ability")
     zh_item = locale("item")
     zh_type = locale("type")
-    ranks = pikalytics_ranks()
+    ranks, rank_usage = pikalytics_ranks()
     versions, wiki_rows = wiki_versions()
 
     ability_descriptions: dict[str, str] = {}
@@ -432,6 +433,7 @@ def main() -> None:
                 "mega": is_mega,
                 "version": versions.get((dex, is_mega), ""),
                 "metaRank": ranks.get(to_id(english)),
+                "metaUsage": rank_usage.get(to_id(english)),
                 "learnset": legal_moves,
                 "defaultMoves": defaults,
                 "popularMoves": popular_moves,
