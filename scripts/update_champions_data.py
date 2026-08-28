@@ -58,8 +58,15 @@ def locale(name: str) -> dict:
 
 def pikalytics_ranks() -> dict[str, int]:
     soup = BeautifulSoup(get(PIKALYTICS).text, "html.parser")
-    cards = soup.select("section[aria-label='Top Pokemon usage'] [data-name]")
-    return {to_id(card.get("data-name", "")): index + 1 for index, card in enumerate(cards)}
+    # The page contains the complete visible usage table; restricting this to
+    # the "Top Pokemon usage" section only returned the first 20 entries.
+    cards = soup.select("[data-name]")
+    ranks: dict[str, int] = {}
+    for card in cards:
+        name = to_id(card.get("data-name", ""))
+        if name and name not in ranks:
+            ranks[name] = len(ranks) + 1
+    return ranks
 
 
 def wiki_versions() -> tuple[dict[tuple[int, bool], str], int]:
