@@ -32,7 +32,7 @@
 <body>
   <header class="top"><div class="topin"><div><p class="eyebrow">POKÉMON CHAMPIONS</p><h1>冠军战术台 <span style="color:#9ba8c7;font-size:13px;font-weight:600">GitHub Pages</span></h1></div><div class="badges"><span class="badge blue">双打 · Lv. 50</span><button class="badge" id="typeChartButton">属性克制表</button><button class="badge" id="manageTeams">本机队伍</button></div></div></header>
   <main class="wrap">
-    <div class="notice"><span>Regulation M-B 数据库：<b>323 个可用形态、500 个招式、151 件道具</b>；普通形态与超级进化分组显示。</span><button id="clearStorage">清空本机队伍库</button></div>
+  <div class="notice"><span>Regulation M-C 数据库：<b>358 个可用形态、514 个招式、169 件道具</b>；普通形态与超级进化分组显示。</span><button id="clearStorage">清空本机队伍库</button></div>
     <div class="board">
       <section class="panel left"><div class="panel-head"><div><h2>我方队伍</h2><p class="sub">选择两只上场宝可梦；展开详细数值可编辑能力点数。</p></div><div class="actions"><button class="small save cyan" data-save="my">保存</button><select class="small" data-load="my"><option value="">调用队伍</option></select><button class="small" data-delete="my" title="删除当前选中的本机队伍">删除</button></div></div><div id="myTeam" class="team"></div></section>
       <section class="center">
@@ -45,7 +45,7 @@
     </div>
     <p class="foot">非官方粉丝工具，与任天堂、宝可梦公司及 Game Freak 无关。数据参考 Smogon Champions、52Poké、PokéStats 开源翻译及 Pikalytics；数据库可通过 scripts/update_champions_data.py 重新生成。</p>
   </main>
-  <div id="picker" class="modal" role="dialog" aria-modal="true"><div class="dialog"><div class="dialog-head"><div><h2>替换宝可梦</h2><p class="sub">搜索 Regulation M-B 完整可用池</p></div><div class="dialog-actions"><button type="button" id="confirmAdd">添加选中</button><button class="close" id="closePicker">关闭</button></div></div><input id="search" class="search" placeholder="搜索宝可梦、英文名、属性或特性…" autocomplete="off"><div id="results" class="results"></div><div id="pickerFoot" class="picker-foot"><span id="pickCount">可多选宝可梦</span></div></div></div>
+  <div id="picker" class="modal" role="dialog" aria-modal="true"><div class="dialog"><div class="dialog-head"><div><h2>替换宝可梦</h2><p class="sub">搜索 Regulation M-C 完整可用池</p></div><div class="dialog-actions"><button type="button" id="confirmAdd">添加选中</button><button class="close" id="closePicker">关闭</button></div></div><input id="search" class="search" placeholder="搜索宝可梦、英文名、属性或特性…" autocomplete="off"><div id="results" class="results"></div><div id="pickerFoot" class="picker-foot"><span id="pickCount">可多选宝可梦</span></div></div></div>
   <div id="typeChart" class="modal" role="dialog" aria-modal="true"><div class="dialog type-chart-dialog"><div class="dialog-head"><div><h2>属性克制表</h2><p class="sub">行是攻击属性，列是防守属性</p></div><button class="close" id="closeTypeChart">关闭</button></div><div id="typeChartGrid" class="type-chart-body"></div><div class="type-chart-legend"><span class="super">2 / 4：效果绝佳</span><span class="resist">½ / ¼：效果不好</span><span class="immune">0：没有效果</span><span>—：通常</span></div></div></div>
   <div id="teamManager" class="modal"><div class="dialog"><div class="dialog-head"><div><h2>本机保存的队伍</h2><p class="sub">选择性删除本机队伍记录</p></div><button class="close" id="closeManager">关闭</button></div><div id="savedTeams" class="saved-teams"></div></div></div>
   <script src="data/champions-db.js"></script>

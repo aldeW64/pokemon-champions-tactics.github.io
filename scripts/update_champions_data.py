@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import argparse
 import json
 import os
 import re
@@ -56,8 +57,11 @@ def locale(name: str) -> dict:
     return get(f"{LOCALES}/{name}.zh.json").json()
 
 
-def pikalytics_ranks() -> tuple[dict[str, int], dict[str, float]]:
-    api_url = "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmb?limit=2000&offset=0&elo_cutoff=1760"
+def pikalytics_ranks(regulation: str = "M-B") -> tuple[dict[str, int], dict[str, float]]:
+    api_url = {
+        "M-B": "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmb?limit=2000&offset=0&elo_cutoff=1760",
+        "M-C": "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmc?limit=2000&offset=0&elo_cutoff=1760",
+    }.get(regulation, "https://pokekipe.com/api/v1/meta/gen9championsvgc2026regmb?limit=2000&offset=0&elo_cutoff=1760")
     try:
         payload = get(api_url).json()
         rows = payload.get("pokemon", []) if isinstance(payload, dict) else []
@@ -238,13 +242,30 @@ def translated(mapping: dict, english: str) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Build Pokemon Champions data file.")
+    parser.add_argument(
+        "--regulation",
+        default="M-B",
+        choices=["M-B", "M-C"],
+        help="Target regulation for database output.",
+    )
+    parser.add_argument(
+        "--no-rank",
+        action="store_true",
+        help="Skip ranking and popularity data fetch.",
+    )
+    args = parser.parse_args()
+
     basics = smogon_basics()
     zh_pokemon = locale("pokemon")
     zh_move = locale("move")
     zh_ability = locale("ability")
     zh_item = locale("item")
     zh_type = locale("type")
-    ranks, rank_usage = pikalytics_ranks()
+    if args.regulation == "M-C":
+        # Temporarily no-rank mode for M-C until API source is confirmed.
+        args.no_rank = True
+    ranks, rank_usage = ({}, {}) if args.no_rank else pikalytics_ranks(args.regulation)
     versions, wiki_rows = wiki_versions()
 
     ability_descriptions: dict[str, str] = {}
@@ -295,13 +316,14 @@ def main() -> None:
                 print(f"learnsets {index}/{len(futures)}")
 
     popular: dict[str, dict] = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(fetch_pikalytics, p["name"]) for p in pokemon_source]
-        for index, future in enumerate(concurrent.futures.as_completed(futures), 1):
-            name, result = future.result()
-            popular[name] = result
-            if index % 40 == 0:
-                print(f"popular sets {index}/{len(futures)}")
+    if not args.no_rank:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(fetch_pikalytics, p["name"]) for p in pokemon_source]
+            for index, future in enumerate(concurrent.futures.as_completed(futures), 1):
+                name, result = future.result()
+                popular[name] = result
+                if index % 40 == 0:
+                    print(f"popular sets {index}/{len(futures)}")
 
     moves = []
     moves_by_name = {}
@@ -452,7 +474,7 @@ def main() -> None:
 
     database = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "regulation": "M-B",
+        "regulation": args.regulation,
         "sources": {
             "smogon": SMOGON,
             "wiki52poke": WIKI,
@@ -466,7 +488,7 @@ def main() -> None:
             "items": len(items),
             "abilities": len(basics["abilities"]),
             "wikiRows": wiki_rows,
-            "popularSets": sum(bool(value.get("moves")) for value in popular.values()),
+            "popularSets": 0 if args.no_rank else sum(bool(value.get("moves")) for value in popular.values()),
         },
         "pokemon": pokemon,
         "moves": moves,
