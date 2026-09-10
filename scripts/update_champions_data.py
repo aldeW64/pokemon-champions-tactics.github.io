@@ -452,6 +452,7 @@ def main() -> None:
                 "types": [translated(zh_type, value) for value in source_types],
                 "abilities": [translated(zh_ability, value) for value in source["abilities"]],
                 "stats": [source[key] for key in ("hp", "atk", "def", "spa", "spd", "spe")],
+                "weight": source.get("weight", 0),
                 "mega": is_mega,
                 "version": versions.get((dex, is_mega), ""),
                 "metaRank": ranks.get(to_id(english)),
